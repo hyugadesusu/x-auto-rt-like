@@ -1,67 +1,85 @@
 import os
 import requests
+from datetime import datetime, timezone, timedelta
 
-# 認証トークンと監視対象ユーザー
-BEARER_TOKEN = os.getenv("A_BEARER_TOKEN")
+# 環境変数から取得
+BEARER_TOKEN = os.environ["BEARER_TOKEN"]
 USERS = [
-    os.getenv("B_USER"),
-    os.getenv("C_USER"),
-    os.getenv("D_USER"),
+    os.environ["B_USER"],
+    os.environ["C_USER"],
+    os.environ["D_USER"]
 ]
+
 HEADERS = {
-    "Authorization": f"Bearer {BEARER_TOKEN}",
-    "Content-Type": "application/json"
+    "Authorization": f"Bearer {BEARER_TOKEN}"
 }
-API_BASE = "https://api.twitter.com/2"
+
+API_URL = "https://api.twitter.com/2"
+
 
 def get_user_id(username):
-    url = f"{API_BASE}/users/by/username/{username}"
+    url = f"{API_URL}/users/by/username/{username}"
     res = requests.get(url, headers=HEADERS)
-    if res.status_code != 200:
-        raise Exception(f"Failed to get user ID for {username}: {res.text}")
+    return res.json().get("data", {}).get("id")
+
+
+def get_latest_tweets(user_id):
+    url = f"{API_URL}/users/{user_id}/tweets"
+    params = {
+        "max_results": 5,
+        "tweet.fields": "created_at,attachments",
+        "expansions": "attachments.media_keys",
+        "media.fields": "type,url"
+    }
+    res = requests.get(url, headers=HEADERS, params=params)
+    return res.json()
+
+
+def get_my_user_id():
+    url = f"{API_URL}/users/me"
+    res = requests.get(url, headers=HEADERS)
     return res.json()["data"]["id"]
 
-def get_latest_image_tweet(user_id):
-    url = f"{API_BASE}/users/{user_id}/tweets?max_results=5&expansions=attachments.media_keys&media.fields=type"
-    res = requests.get(url, headers=HEADERS)
-    if res.status_code != 200:
-        print(f"Failed to get tweets for {user_id}")
-        return None
-    tweets = res.json()
-    media = {m["media_key"]: m for m in tweets.get("includes", {}).get("media", [])}
 
-    for tweet in tweets.get("data", []):
-        if "attachments" in tweet and any(media[mk]["type"] == "photo" for mk in tweet["attachments"].get("media_keys", [])):
-            return tweet
-    return None
+def retweet(my_id, tweet_id):
+    url = f"{API_URL}/users/{my_id}/retweets"
+    res = requests.post(url, headers=HEADERS, json={"tweet_id": tweet_id})
+    print(f"Retweet {tweet_id}: {res.status_code}")
 
-def react_to_tweet(tweet_id, user_id):
-    # リツイート
-    rt_url = f"{API_BASE}/users/{user_id}/retweets"
-    rt_res = requests.post(rt_url, json={"tweet_id": tweet_id}, headers=HEADERS)
-    if rt_res.status_code == 200:
-        print(f"Retweeted: {tweet_id}")
-    else:
-        print(f"RT failed: {rt_res.text}")
 
-    # いいね
-    like_url = f"{API_BASE}/users/{user_id}/likes"
-    like_res = requests.post(like_url, json={"tweet_id": tweet_id}, headers=HEADERS)
-    if like_res.status_code == 200:
-        print(f"Liked: {tweet_id}")
-    else:
-        print(f"Like failed: {like_res.text}")
+def like(my_id, tweet_id):
+    url = f"{API_URL}/users/{my_id}/likes"
+    res = requests.post(url, headers=HEADERS, json={"tweet_id": tweet_id})
+    print(f"Like {tweet_id}: {res.status_code}")
 
-def main():
-    my_id = get_user_id("me")
-    for username in USERS:
-        try:
-            uid = get_user_id(username)
-            tweet = get_latest_image_tweet(uid)
-            if tweet:
-                react_to_tweet(tweet["id"], my_id)
-        except Exception as e:
-            print(f"Error processing {username}: {e}")
 
-if __name__ == "__main__":
-    main()
+# メイン処理
+my_user_id = get_my_user_id()
+
+for username in USERS:
+    user_id = get_user_id(username)
+    tweets_data = get_latest_tweets(user_id)
+
+    tweets = tweets_data.get("data", [])
+    media_keys = set()
+    if "includes" in tweets_data and "media" in tweets_data["includes"]:
+        media_keys = {media["media_key"] for media in tweets_data["includes"]["media"]}
+
+    for tweet in tweets:
+        # 投稿日時チェック
+        created_at = datetime.strptime(tweet["created_at"], "%Y-%m-%dT%H:%M:%S.%fZ")
+        created_at = created_at.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        if now - created_at > timedelta(minutes=15):
+            continue
+
+        # メディア付きチェック
+        has_media = False
+        if "attachments" in tweet and "media_keys" in tweet["attachments"]:
+            if any(key in media_keys for key in tweet["attachments"]["media_keys"]):
+                has_media = True
+
+        if has_media:
+            tweet_id = tweet["id"]
+            retweet(my_user_id, tweet_id)
+            like(my_user_id, tweet_id)
