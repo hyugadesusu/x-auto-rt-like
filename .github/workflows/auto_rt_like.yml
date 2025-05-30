@@ -10,12 +10,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - name: Run Python script
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.x'
-      - run: pip install requests
-      - run: python main.py
+      - name: Install requests
+        run: pip install requests
+      - name: Run main.py
+        run: python main.py
         env:
           BEARER_TOKEN: ${{ secrets.A_BEARER_TOKEN }}
           B_USER: ${{ secrets.B_USER }}
