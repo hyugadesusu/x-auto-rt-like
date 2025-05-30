@@ -9,10 +9,10 @@ HEADERS = {
     "Authorization": f"Bearer {BEARER_TOKEN}"
 }
 
-USER_IDS = [
-    "1851571508872654848",  # Rosemarie656665
-    "1841179171558461447"   # rebecca_mi90591
-]
+USER_MAP = {
+    "1851571508872654848": "Rosemarie656665",
+    "1841179171558461447": "rebecca_mi90591"
+}
 
 SELF_ID = "1872918797662994436"
 
@@ -21,7 +21,7 @@ fifteen_minutes_ago = now - datetime.timedelta(minutes=15)
 start_time = fifteen_minutes_ago.isoformat("T") + "Z"
 end_time = now.isoformat("T") + "Z"
 
-rt_count = 0
+rt_total = 0
 error_flag = False
 
 def send_discord_alert(webhook_env, message):
@@ -48,55 +48,63 @@ def get_recent_tweets(user_id):
     if response.status_code == 429 or response.status_code >= 500:
         global error_flag
         error_flag = True
-    return response.json()
+    return response.status_code, response.json()
 
 def like_and_retweet(tweet_id):
-    global rt_count
     print(f"→ Liking and retweeting: {tweet_id}")
     like_res = requests.post(
         f"https://api.twitter.com/2/users/{SELF_ID}/likes",
         headers=HEADERS,
         json={"tweet_id": tweet_id}
     )
-    print(f"   Like status: {like_res.status_code}")
     rt_res = requests.post(
         f"https://api.twitter.com/2/users/{SELF_ID}/retweets",
         headers=HEADERS,
         json={"tweet_id": tweet_id}
     )
+    print(f"   Like status: {like_res.status_code}")
     print(f"   Retweet status: {rt_res.status_code}")
-    if like_res.status_code == 200 and rt_res.status_code == 200:
-        rt_count += 1
+    return like_res.status_code == 200 and rt_res.status_code == 200
 
-for uid in USER_IDS:
-    print(f"=== Checking tweets from user: {uid} ===")
-    data = get_recent_tweets(uid)
+for uid, username in USER_MAP.items():
+    print(f"=== Checking tweets from user: {uid} ({username}) ===")
+    status_code, data = get_recent_tweets(uid)
     tweets = data.get("data", [])
     includes = data.get("includes", {})
     media_dict = {m["media_key"]: m for m in includes.get("media", [])}
-    print(f"→ {len(tweets)} tweets found")
+    rt_count = 0
+
+    if status_code == 429:
+        send_discord_alert("DISCORD_WEBHOOK_ERROR", f"⚠️ @{username}：API制限（429）。投稿取得失敗。")
+        continue
+    elif status_code >= 400:
+        send_discord_alert("DISCORD_WEBHOOK_ERROR", f"❌ @{username}：エラー（{status_code}）で投稿取得失敗。")
+        continue
+
+    if not tweets:
+        send_discord_alert("DISCORD_WEBHOOK_NO_MATCH", f"ℹ️ @{username}：15分以内に投稿なし。")
+        continue
 
     for tweet in tweets:
         tweet_id = tweet["id"]
         attachments = tweet.get("attachments", {})
         media_keys = attachments.get("media_keys", [])
-
         if not media_keys:
-            print(f"   Tweet {tweet_id} has no media, skipping.")
             continue
-
         if any(media_dict.get(k, {}).get("type") == "photo" for k in media_keys):
-            print(f"   Tweet {tweet_id} has photo(s), processing.")
-            like_and_retweet(tweet_id)
-        else:
-            print(f"   Tweet {tweet_id} has media, but not photo, skipping.")
+            if like_and_retweet(tweet_id):
+                tweet_url = f"https://twitter.com/{username}/status/{tweet_id}"
+                send_discord_alert("DISCORD_WEBHOOK_SUCCESS", f"✅ RT成功：@{username} の投稿
+{tweet_url}")
+                rt_count += 1
 
-    time.sleep(2)  # sleep to reduce rate limit issues
+    if rt_count == 0:
+        send_discord_alert("DISCORD_WEBHOOK_NO_MATCH", f"ℹ️ @{username}：画像付きツイートなし。RTせず。")
+    else:
+        rt_total += rt_count
 
-# Notification logic
+# 全体まとめ通知（任意、今回は省略）
 if error_flag:
-    send_discord_alert("DISCORD_WEBHOOK_ERROR", "⚠️ APIリクエストが制限されました（429など）。RTできませんでした。")
-elif rt_count == 0:
-    send_discord_alert("DISCORD_WEBHOOK_NO_MATCH", "ℹ️ 画像付きツイートが見つかりませんでした。RTなし。")
+    print("⚠️ Some errors occurred during processing.")
 else:
-    send_discord_alert("DISCORD_WEBHOOK_SUCCESS", f"✅ RT完了：{rt_count} 件の画像付きツイートをRT・いいねしました。")
+    print(f"✅ All done. Total RTs: {rt_total}")
