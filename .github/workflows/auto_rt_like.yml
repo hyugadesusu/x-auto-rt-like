@@ -1,28 +1,28 @@
-
-name: Auto RT & Like X
+name: Auto RT with Image
 
 on:
-  workflow_dispatch:  # 手動実行ボタンを有効にする
-  #schedule:
-    #- cron: '*/15 * * * *'  # 15分ごとに自動実行
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
 
 jobs:
-  run-bot:
+  auto-rt:
     runs-on: ubuntu-latest
-
+    env:
+      BEARER_TOKEN: ${{ secrets.BEARER_TOKEN }}
+      DISCORD_WEBHOOK_SUCCESS: ${{ secrets.DISCORD_WEBHOOK_SUCCESS }}
+      DISCORD_WEBHOOK_NO_MATCH: ${{ secrets.DISCORD_WEBHOOK_NO_MATCH }}
+      DISCORD_WEBHOOK_ERROR: ${{ secrets.DISCORD_WEBHOOK_ERROR }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.x'
 
       - name: Install dependencies
         run: pip install requests
 
-      - name: Run bot script
-        env:
-          BEARER_TOKEN: ${{ secrets.BEARER_TOKEN }}
+      - name: Run RT Script
         run: python main.py
