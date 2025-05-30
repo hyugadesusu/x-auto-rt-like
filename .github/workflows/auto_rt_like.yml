@@ -1,0 +1,23 @@
+name: Auto RT & Like X
+
+on:
+  schedule:
+    - cron: '0 10,22 * * *'
+  workflow_dispatch:
+
+jobs:
+  rt_like_job:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run Python script
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - run: pip install requests
+      - run: python main.py
+        env:
+          BEARER_TOKEN: ${{ secrets.A_BEARER_TOKEN }}
+          B_USER: ${{ secrets.B_USER }}
+          C_USER: ${{ secrets.C_USER }}
+          D_USER: ${{ secrets.D_USER }}
