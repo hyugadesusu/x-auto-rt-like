@@ -3,8 +3,8 @@ name: Auto RT & Like X
 
 on:
   workflow_dispatch:  # 手動実行ボタンを有効にする
-  schedule:
-    - cron: '*/15 * * * *'  # 15分ごとに自動実行
+  #schedule:
+    #- cron: '*/15 * * * *'  # 15分ごとに自動実行
 
 jobs:
   run-bot:
