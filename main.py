@@ -37,7 +37,10 @@ def get_recent_tweets(user_id):
         "media.fields": "type,url"
     }
     response = requests.get(url, params=params, auth=auth)
-    print(f"[{user_id}] status: {response.status_code}")
+    print(f"--- User: {user_id} ---")
+    print(f"Status Code: {response.status_code}")
+    print("Headers:", response.headers)
+    print("Response Body:", response.text)
     if response.status_code != 200:
         return []
     data = response.json()
