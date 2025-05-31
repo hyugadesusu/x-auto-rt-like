@@ -3,6 +3,7 @@ import os
 import requests
 from requests_oauthlib import OAuth1
 import datetime
+import time
 
 # OAuth1 認証
 auth = OAuth1(
@@ -23,8 +24,8 @@ SELF_ID = "1872918797662994436"
 
 now = datetime.datetime.utcnow()
 fifteen_minutes_ago = now - datetime.timedelta(minutes=15)
-start_time = fifteen_minutes_ago.isoformat("T") + "Z"
-end_time = now.isoformat("T") + "Z"
+start_time = fifteen_minutes_ago.replace(microsecond=0).isoformat("T") + "Z"
+end_time = now.replace(microsecond=0).isoformat("T") + "Z"
 
 def get_recent_tweets(user_id):
     url = f"https://api.twitter.com/2/users/{user_id}/tweets"
