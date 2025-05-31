@@ -1,28 +1,26 @@
-name: Auto RT with Image
+
+name: Auto RT & Like
 
 on:
-  #schedule:
-    #- cron: '*/15 * * * *'
+  schedule:
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 jobs:
-  auto-rt:
+  retweet:
     runs-on: ubuntu-latest
-    env:
-      BEARER_TOKEN: ${{ secrets.BEARER_TOKEN }}
-      DISCORD_WEBHOOK_SUCCESS: ${{ secrets.DISCORD_WEBHOOK_SUCCESS }}
-      DISCORD_WEBHOOK_NO_MATCH: ${{ secrets.DISCORD_WEBHOOK_NO_MATCH }}
-      DISCORD_WEBHOOK_ERROR: ${{ secrets.DISCORD_WEBHOOK_ERROR }}
     steps:
       - uses: actions/checkout@v3
-
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
-
+          python-version: 3.11
       - name: Install dependencies
-        run: pip install requests
-
-      - name: Run RT Script
-        run: python main.py
+        run: pip install requests requests_oauthlib
+      - name: Run RT & Like Script
+        env:
+          API_KEY: ${{ secrets.API_KEY }}
+          API_SECRET_KEY: ${{ secrets.API_SECRET_KEY }}
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          ACCESS_TOKEN_SECRET: ${{ secrets.ACCESS_TOKEN_SECRET }}
+        run: python main_oauth1_updated.py
