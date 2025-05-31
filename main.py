@@ -5,7 +5,6 @@ from requests_oauthlib import OAuth1
 import datetime
 import time
 
-# OAuth1 認証
 auth = OAuth1(
     os.environ['API_KEY'],
     os.environ['API_SECRET_KEY'],
@@ -13,7 +12,6 @@ auth = OAuth1(
     os.environ['ACCESS_TOKEN_SECRET']
 )
 
-# 対象ユーザーIDと名前のマップ
 USER_MAP = {
     "1851571508872654848": "Rosemarie656665",
     "1841179171558461447": "rebecca_mi90591",
@@ -27,6 +25,14 @@ fifteen_minutes_ago = now - datetime.timedelta(minutes=15)
 start_time = fifteen_minutes_ago.replace(microsecond=0).isoformat("T") + "Z"
 end_time = now.replace(microsecond=0).isoformat("T") + "Z"
 
+def wait_if_rate_limited(response):
+    if response.status_code == 429:
+        reset_time = int(response.headers.get("x-rate-limit-reset", 0))
+        wait_time = reset_time - int(time.time())
+        if wait_time > 0:
+            print(f"⏳ API制限中。{wait_time}秒待機...")
+            time.sleep(wait_time + 1)
+
 def get_recent_tweets(user_id):
     url = f"https://api.twitter.com/2/users/{user_id}/tweets"
     params = {
@@ -37,13 +43,17 @@ def get_recent_tweets(user_id):
         "expansions": "attachments.media_keys",
         "media.fields": "type,url"
     }
-    response = requests.get(url, params=params, auth=auth)
-    print(f"--- User: {user_id} ---")
-    print(f"Status Code: {response.status_code}")
-    print("Headers:", response.headers)
-    print("Response Body:", response.text)
-    if response.status_code != 200:
-        return []
+    while True:
+        response = requests.get(url, params=params, auth=auth)
+        print(f"--- User: {user_id} ---")
+        print(f"Status Code: {response.status_code}")
+        print("Headers:", response.headers)
+        print("Response Body:", response.text)
+        if response.status_code == 200:
+            break
+        wait_if_rate_limited(response)
+        if response.status_code != 429:
+            return []
     data = response.json()
     tweets = data.get("data", [])
     media_dict = {}
